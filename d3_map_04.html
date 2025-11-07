@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>流星效果地圖</title>
+  </head>
+
+  <body>
+    <div id="tooltip"></div>
+    <svg
+      id="map"
+      viewBox="0 0 1000 520"
+      preserveAspectRatio="xMidYMid meet"
+    ></svg>
+  </body>
+
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(ellipse at center, #0b1220 0%, #03060d 100%);
+      overflow: hidden;
+    }
+    #map {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      padding: 6px 8px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border-radius: 4px;
+      font-size: 12px;
+      opacity: 0;
+      transform: translate(-50%, -120%);
+      transition: opacity 0.15s;
+    }
+    .country {
+      fill: #1b2333;
+      stroke: #3a4964;
+      stroke-width: 0.5;
+    }
+    .country.hover {
+      fill: #2a3a56;
+    }
+  </style>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <script>
+    const svg = d3.select('#map');
+    const g = svg.append('g');
+    const defs = svg.append('defs');
+    const tooltip = document.getElementById('tooltip');
+
+    const baseWidth = 1000,
+      baseHeight = 520;
+
+    const projection = d3
+      .geoNaturalEarth1()
+      .scale(170)
+      .translate([baseWidth / 2, baseHeight / 2]);
+    const path = d3.geoPath(projection);
+
+    const flows = [
+      { src: [-77.0, 38.9], dst: [100.5, 13.7] }, // Washington → Bangkok
+      { src: [-47.9, -15.8], dst: [100.5, 13.7] }, // Brasília → Bangkok
+    ];
+
+    // Glow 濾鏡
+    const glow = defs
+      .append('filter')
+      .attr('id', 'glow')
+      .attr('filterUnits', 'userSpaceOnUse');
+    glow
+      .append('feGaussianBlur')
+      .attr('stdDeviation', 2)
+      .attr('result', 'blur');
+    const merge = glow.append('feMerge');
+    merge.append('feMergeNode').attr('in', 'blur');
+    merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    // 載入地圖
+    loadWorld().then((world) => {
+      const countries = topojson.feature(
+        world,
+        world.objects.countries
+      ).features;
+
+      // 畫地圖
+      g.selectAll('path.country')
+        .data(countries)
+        .join('path')
+        .attr('class', 'country')
+        .attr('d', path)
+        .on('mousemove', (event, d) => {
+          const name = d.properties?.name || d.properties?.NAME || 'Unknown';
+          tooltip.textContent = name;
+          tooltip.style.opacity = 1;
+          tooltip.style.left = event.clientX + 'px';
+          tooltip.style.top = event.clientY + 'px';
+          d3.select(event.currentTarget).classed('hover', true);
+        })
+        .on('mouseout', (event) => {
+          tooltip.style.opacity = 0;
+          d3.select(event.currentTarget).classed('hover', false);
+        });
+
+      // 為每條線加上漸層
+      flows.forEach((f, i) => {
+        const [x1, y1] = projection(f.src);
+        const [x2, y2] = projection(f.dst);
+        const grad = defs
+          .append('linearGradient')
+          .attr('id', `meteorGradient${i}`)
+          .attr('x1', x1)
+          .attr('y1', y1)
+          .attr('x2', x2)
+          .attr('y2', y2)
+          .attr('gradientUnits', 'userSpaceOnUse');
+        grad
+          .append('stop')
+          .attr('offset', '0%')
+          .attr('stop-color', '#ffffff')
+          .attr('stop-opacity', 0);
+        grad
+          .append('stop')
+          .attr('offset', '30%')
+          .attr('stop-color', '#7df9ff')
+          .attr('stop-opacity', 0.8);
+        grad
+          .append('stop')
+          .attr('offset', '100%')
+          .attr('stop-color', '#0ff')
+          .attr('stop-opacity', 1);
+      });
+
+      // 流星線條
+      const meteors = g
+        .selectAll('path.meteor')
+        .data(flows.map((f, i) => ({ f, i })))
+        .join('path')
+        .attr('class', 'meteor')
+        .attr('d', (d) => {
+          const [x1, y1] = projection(d.f.src);
+          const [x2, y2] = projection(d.f.dst);
+          return `M${x1},${y1} L${x2},${y2}`;
+        })
+        .attr('stroke', (d) => `url(#meteorGradient${d.i})`)
+        .attr('stroke-width', 1)
+        .attr('stroke-linecap', 'round')
+        .attr('filter', 'url(#glow)')
+        .attr('stroke-dasharray', function () {
+          return this.getTotalLength() + ',' + this.getTotalLength();
+        });
+
+      animate();
+
+      function animate() {
+        meteors.each(function (d, i) {
+          const p = d3.select(this);
+          const total = this.getTotalLength();
+          const trail = total * 0.7; // 尾巴比例
+          const dur = 3000 + i * 1000;
+
+          function repeat() {
+            p.attr('stroke-dasharray', `${total},${total}`)
+              .attr('stroke-dashoffset', total)
+              .transition()
+              .duration(dur)
+              .ease(d3.easeCubicOut)
+              .attr('stroke-dashoffset', 0)
+              .on('end', () => {
+                p.attr('stroke-dashoffset', total);
+                repeat();
+              });
+          }
+          repeat();
+        });
+      }
+
+      // zoom / pan
+      svg.call(
+        d3
+          .zoom()
+          .scaleExtent([1, 8])
+          .on('zoom', (ev) => g.attr('transform', ev.transform))
+      );
+    });
+
+    function loadWorld() {
+      return d3
+        .json('world-110m.json')
+        .catch(() =>
+          d3.json(
+            'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+          )
+        );
+    }
+  </script>
+</html>

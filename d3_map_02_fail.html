@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+
+<body>
+  <div id="tooltip"></div>
+  <svg
+    id="map"
+    viewBox="0 0 1000 520"
+    preserveAspectRatio="xMidYMid slice"
+  ></svg>
+</body>
+
+<style>
+  /* 讓百分比/視窗高生效 */
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+  }
+
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    padding: 6px 8px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    font-size: 12px;
+    opacity: 0;
+    transform: translate(-50%, -120%);
+    transition: opacity 0.15s;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .country {
+    fill: #e6eef3;
+    stroke: #9fb3c6;
+    stroke-width: 0.6;
+  }
+  .country.hover {
+    fill: #ffd98a;
+  }
+</style>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/topojson-client@3"></script>
+<script>
+  const svg = d3.select('#map');
+  const g = svg.append('g');
+  const tooltip = document.getElementById('tooltip');
+
+  let projection = d3.geoNaturalEarth1();
+  let path = d3.geoPath(projection);
+  let countriesData = [];
+
+  // 讀取世界地圖
+  d3.json(
+    'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+  ).then((world) => {
+    countriesData = topojson.feature(world, world.objects.countries).features;
+    drawMap(); // 初次繪製
+    window.addEventListener('resize', drawMap); // 監聽瀏覽器調整大小
+  });
+
+  function drawMap() {
+    const width = svg.node().clientWidth;
+    const height = svg.node().clientHeight;
+
+    // 根據容器重新設定投影
+    projection = d3
+      .geoNaturalEarth1()
+      .fitSize([width, height], { type: 'Sphere' });
+    path = d3.geoPath(projection);
+
+    const countries = g
+      .selectAll('path.country')
+      .data(countriesData, (d) => d.id);
+
+    countries
+      .enter()
+      .append('path')
+      .attr('class', 'country')
+      .merge(countries)
+      .attr('d', path)
+      .on('mousemove', (event, d) => {
+        const name = d.properties?.name || d.properties?.NAME || 'Unknown';
+        tooltip.textContent = name;
+        tooltip.style.opacity = 1;
+        tooltip.style.left = event.clientX + 'px';
+        tooltip.style.top = event.clientY + 'px';
+        d3.select(event.currentTarget).classed('hover', true);
+      })
+      .on('mouseout', (event) => {
+        tooltip.style.opacity = 0;
+        d3.select(event.currentTarget).classed('hover', false);
+      });
+
+    countries.exit().remove();
+
+    // 重新套用縮放行為
+    svg.call(
+      d3
+        .zoom()
+        .scaleExtent([1, 8])
+        .on('zoom', (ev) => {
+          g.attr('transform', ev.transform);
+        })
+    );
+  }
+</script>

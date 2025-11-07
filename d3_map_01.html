@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+
+  <body>
+    <div id="tooltip"></div>
+    <svg
+      id="map"
+      viewBox="0 0 1000 520"
+      preserveAspectRatio="xMidYMid meet"
+    ></svg>
+  </body>
+
+  <style>
+    #map {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      padding: 6px 8px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      font-size: 12px;
+      opacity: 0;
+      transform: translate(-50%, -120%);
+      transition: opacity 0.15s;
+    }
+    .country {
+      fill: #e6eef3;
+      stroke: #9fb3c6;
+      stroke-width: 0.6;
+    }
+    .country.hover {
+      fill: #ffd98a;
+    }
+  </style>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <script>
+    const svg = d3.select('#map');
+    const g = svg.append('g').attr('class', 'map-group'); // 所有元素放這裡，方便 zoom
+    const tooltip = document.getElementById('tooltip');
+
+    const baseWidth = 1000,
+      baseHeight = 520;
+
+    // 投影與路徑（依 viewBox 座標）
+    let projection = d3
+      .geoNaturalEarth1()
+      .scale(170)
+      .translate([baseWidth / 2, baseHeight / 2]);
+    let path = d3.geoPath(projection);
+
+    // demo 資料（點到點距離）
+    const flows = [
+      { src: [-47.9, -15.8], dst: [100.5, 13.7] }, // Brasilia -> Bangkok
+      { src: [-77.0, 38.9], dst: [100.5, 13.7] }, // Washington -> Bangkok
+    ];
+
+    function greatCircle(src, dst, steps = 64) {
+      const interp = d3.geoInterpolate(src, dst);
+      return {
+        type: 'LineString',
+        coordinates: d3.range(steps + 1).map((t) => interp(t / steps)),
+      };
+    }
+
+    // 讀取 topojson：先本機，失敗時用 CDN
+    loadWorld().then((world) => {
+      const countries = topojson.feature(
+        world,
+        world.objects.countries
+      ).features;
+
+      // 逐國家 path（才能個別 hover）
+      g.selectAll('path.country')
+        .data(countries, (d) => d.id)
+        .join('path')
+        .attr('class', 'country')
+        .attr('d', path)
+        .on('mousemove', (event, d) => {
+          const name = d.properties?.name || d.properties?.NAME || 'Unknown';
+          tooltip.textContent = name;
+          tooltip.style.opacity = 1;
+          tooltip.style.left = event.clientX + 'px';
+          tooltip.style.top = event.clientY + 'px';
+          d3.select(event.currentTarget).classed('hover', true);
+        })
+        .on('mouseout', (event) => {
+          tooltip.style.opacity = 0;
+          d3.select(event.currentTarget).classed('hover', false);
+        });
+
+      // 飛線
+      g.append('g')
+        .attr('fill', 'none')
+        .attr('stroke', '#a7ad2f')
+        .attr('stroke-opacity', 0.6)
+        .selectAll('path.flow')
+        .data(flows.map((f) => greatCircle(f.src, f.dst)))
+        .join('path')
+        .attr('class', 'flow')
+        .attr('d', (d) => path(d))
+        .attr('stroke-width', 1.2);
+
+      // 目的地標記
+      g.selectAll('circle.dest')
+        .data(flows.slice(0, 1))
+        .join('circle')
+        .attr('class', 'dest')
+        .attr('r', 5)
+        .attr('transform', (d) => `translate(${projection(d.dst)})`)
+        .attr('fill', '#f0a202');
+
+      // 縮放／拖曳套用在群組上
+      svg.call(
+        d3
+          .zoom()
+          .scaleExtent([1, 8])
+          .on('zoom', (ev) => g.attr('transform', ev.transform))
+      );
+    });
+
+    // —— helpers ——
+    function loadWorld() {
+      return d3
+        .json('world-110m.json')
+        .catch(() =>
+          d3.json(
+            'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+          )
+        );
+    }
+  </script>
+</html>

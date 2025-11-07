@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>流星效果地圖</title>
+    <style>
+      body {
+        margin: 0;
+        background: radial-gradient(
+          ellipse at center,
+          #0b1220 0%,
+          #03060d 100%
+        );
+        overflow: hidden;
+      }
+      #map {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      #tooltip {
+        position: fixed;
+        pointer-events: none;
+        padding: 6px 8px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        border-radius: 4px;
+        font-size: 12px;
+        opacity: 0;
+        transform: translate(-50%, -120%);
+        transition: opacity 0.15s;
+      }
+      .country {
+        fill: transparent;
+        stroke: #3a4964;
+        stroke-width: 0.5;
+      }
+      .country.hover {
+        fill: #2a3a56 !important;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="tooltip"></div>
+    <svg
+      id="map"
+      viewBox="0 0 1000 520"
+      preserveAspectRatio="xMidYMid meet"
+    ></svg>
+  </body>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <script>
+    const svg = d3.select('#map');
+    const g = svg.append('g');
+    const defs = svg.append('defs');
+    const tooltip = document.getElementById('tooltip');
+
+    // 創建兩個 group 來組織層級：國家在底層，流星在上層
+    const countriesGroup = g.append('g').attr('class', 'countries-group');
+    const meteorsGroup = g.append('g').attr('class', 'meteors-group');
+
+    const baseWidth = 1000,
+      baseHeight = 520;
+
+    const projection = d3
+      .geoNaturalEarth1()
+      .scale(170)
+      .translate([baseWidth / 2, baseHeight / 2]);
+    const path = d3.geoPath(projection);
+
+    const flows = [
+      { src: [-77.0, 38.9], dst: [100.5, 13.7] }, // Washington → Bangkok
+      { src: [-47.9, -15.8], dst: [100.5, 13.7] }, // Brasília → Bangkok
+      { src: [-74.0, 40.7], dst: [100.5, 13.7] }, // United States (New York) → Thailand (Bangkok)
+      { src: [-0.1, 51.5], dst: [100.5, 13.7] }, // United Kingdom (London) → Thailand (Bangkok)
+      { src: [-77.0, 38.9], dst: [139.7, 35.7] }, // Washington → Tokyo
+      { src: [-47.9, -15.8], dst: [2.3, 48.9] }, // Brasília → Paris
+      { src: [-74.0, 40.7], dst: [-0.1, 51.5] }, // New York → London
+      { src: [-0.1, 51.5], dst: [116.4, 39.9] }, // London → Beijing
+      { src: [139.7, 35.7], dst: [100.5, 13.7] }, // Tokyo → Bangkok
+      { src: [2.3, 48.9], dst: [13.4, 52.5] }, // Paris → Berlin
+      { src: [151.2, -33.9], dst: [139.7, 35.7] }, // Sydney → Tokyo
+      { src: [116.4, 39.9], dst: [72.9, 19.1] }, // Beijing → Mumbai
+      { src: [37.6, 55.8], dst: [-74.0, 40.7] }, // Moscow → New York
+      { src: [72.9, 19.1], dst: [100.5, 13.7] }, // Mumbai → Bangkok
+    ];
+
+    // Glow 濾鏡
+    const glow = defs
+      .append('filter')
+      .attr('id', 'glow')
+      .attr('filterUnits', 'userSpaceOnUse');
+    glow
+      .append('feGaussianBlur')
+      .attr('stdDeviation', 2)
+      .attr('result', 'blur');
+    const merge = glow.append('feMerge');
+    merge.append('feMergeNode').attr('in', 'blur');
+    merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    // 載入地圖
+    loadWorld().then((world) => {
+      const countries = topojson.feature(
+        world,
+        world.objects.countries
+      ).features;
+
+      // 畫地圖（在 countriesGroup 中）
+      const countryPaths = countriesGroup
+        .selectAll('path.country')
+        .data(countries)
+        .join('path')
+        .attr('class', 'country')
+        .attr('d', path)
+        .on('mousemove', (event, d) => {
+          const name = d.properties?.name || d.properties?.NAME || 'Unknown';
+          tooltip.textContent = name;
+          tooltip.style.opacity = 1;
+          tooltip.style.left = event.clientX + 'px';
+          tooltip.style.top = event.clientY + 'px';
+          d3.select(event.currentTarget).classed('hover', true);
+        })
+        .on('mouseout', (event) => {
+          tooltip.style.opacity = 0;
+          d3.select(event.currentTarget).classed('hover', false);
+        });
+
+      // 為每條線加上漸層
+      flows.forEach((f, i) => {
+        const [x1, y1] = projection(f.src);
+        const [x2, y2] = projection(f.dst);
+        const grad = defs
+          .append('linearGradient')
+          .attr('id', `meteorGradient${i}`)
+          .attr('x1', x1)
+          .attr('y1', y1)
+          .attr('x2', x2)
+          .attr('y2', y2)
+          .attr('gradientUnits', 'userSpaceOnUse');
+        grad
+          .append('stop')
+          .attr('offset', '0%')
+          .attr('stop-color', '#ffffff')
+          .attr('stop-opacity', 0);
+        grad
+          .append('stop')
+          .attr('offset', '30%')
+          .attr('stop-color', '#7df9ff')
+          .attr('stop-opacity', 0.8);
+        grad
+          .append('stop')
+          .attr('offset', '100%')
+          .attr('stop-color', '#0ff')
+          .attr('stop-opacity', 1);
+      });
+
+      // 流星線條（在 meteorsGroup 中，確保在國家之上）
+      const meteors = meteorsGroup
+        .selectAll('path.meteor')
+        .data(flows.map((f, i) => ({ f, i })))
+        .join('path')
+        .attr('class', 'meteor')
+        .attr('d', (d) => {
+          const [x1, y1] = projection(d.f.src);
+          const [x2, y2] = projection(d.f.dst);
+          return `M${x1},${y1} L${x2},${y2}`;
+        })
+        .attr('stroke', (d) => `url(#meteorGradient${d.i})`)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-linecap', 'round')
+        .attr('filter', 'url(#glow)')
+        .attr('stroke-dasharray', function () {
+          return this.getTotalLength() + ',' + this.getTotalLength();
+        });
+
+      animate();
+
+      // ✅ 流星動畫 + 國家亮起效果
+      function animate() {
+        meteors.each(function (d, i) {
+          const p = d3.select(this);
+          const total = this.getTotalLength();
+          const dur = 3000 + i * 1000;
+
+          function repeat() {
+            // 起點亮起（流星效果開始時）
+            highlightCountry(d.f.src, '#1998a8');
+
+            p.attr('stroke-dasharray', `0,${total}`)
+              .attr('stroke-dashoffset', 0)
+              .attr('opacity', 1)
+              .transition()
+              .duration(dur * 0.5)
+              .ease(d3.easeCubicInOut)
+              // 前進：尾巴維持一定長度
+              .attrTween('stroke-dasharray', function () {
+                const head = d3.interpolate(0, total);
+                return (t) => `${head(t)},${total}`;
+              })
+              .attr('stroke-dashoffset', 0)
+              .on('end', () => {
+                // 終點亮起（流星到達末尾點時）
+                highlightCountry(d.f.dst, '#817ed4');
+              })
+              .transition()
+              // 第二段動畫：尾巴縮短、慢慢淡出
+              .duration(dur * 0.25)
+              .ease(d3.easeCubicOut)
+              .attrTween('stroke-dasharray', function () {
+                const tail = d3.interpolate(total, total);
+                return (t) => `${tail(t)},${total}`;
+              })
+              .attr('opacity', 0)
+              .on('end', () => {
+                p.attr('stroke-dasharray', `0,0`).attr('stroke-dashoffset', 0);
+                repeat(); // 循環
+              });
+          }
+          repeat();
+        });
+      }
+
+      // 國家短暫亮起（柔和淡入淡出）
+      function highlightCountry(coord, color = 'blue') {
+        const [x, y] = projection(coord);
+        console.log('尋找國家:', coord, color);
+
+        let foundCountry = null;
+        let minDist = Infinity;
+        let closestCountry = null;
+
+        // 先嘗試找到包含該座標的國家（使用 d3.geoContains 檢查地理座標）
+        countryPaths.each(function (d) {
+          // 使用 d3.geoContains 檢查地理座標是否在國家內
+          if (d3.geoContains(d, coord)) {
+            foundCountry = d3.select(this);
+            console.log(
+              '找到包含該點的國家:',
+              d.properties?.name || d.properties?.NAME
+            );
+            return;
+          }
+
+          // 同時記錄最接近的國家（作為備選）
+          const [cx, cy] = projection(d3.geoCentroid(d));
+          const dist = Math.hypot(cx - x, cy - y);
+          if (dist < minDist) {
+            minDist = dist;
+            closestCountry = d3.select(this);
+          }
+        });
+
+        // 如果找到包含該點的國家，使用它；否則使用最接近的國家
+        const country = foundCountry || (minDist < 300 ? closestCountry : null);
+
+        if (country && !country.empty()) {
+          const countryName =
+            country.datum()?.properties?.name ||
+            country.datum()?.properties?.NAME ||
+            'Unknown';
+          console.log('將要亮起國家:', countryName, '距離:', minDist);
+          country
+            .transition()
+            .duration(200)
+            .style('fill', color) // 使用 style 而不是 attr，因為 CSS 優先級更高
+            .transition()
+            .delay(1000)
+            .duration(400)
+            .style('fill', 'transparent');
+
+          // 確保流星線條始終在最上層（在國家高亮後）
+          meteors.raise();
+        } else {
+          console.log('未找到國家，最小距離:', minDist);
+        }
+      }
+
+      // zoom / pan
+      // svg.call(
+      //   d3
+      //     .zoom()
+      //     .scaleExtent([1, 8])
+      //     .on('zoom', (ev) => g.attr('transform', ev.transform))
+      // );
+    });
+
+    function loadWorld() {
+      return d3.json('world-110m.json').catch(() => d3.json('world-110m.json'));
+    }
+  </script>
+</html>

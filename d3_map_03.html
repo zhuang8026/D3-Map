@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flow Animation Map</title>
+  </head>
+  <body>
+    <div id="tooltip"></div>
+    <svg
+      id="map"
+      viewBox="0 0 1000 520"
+      preserveAspectRatio="xMidYMid meet"
+    ></svg>
+  </body>
+
+  <style>
+    #map {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      padding: 6px 8px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      font-size: 12px;
+      opacity: 0;
+      transform: translate(-50%, -120%);
+      transition: opacity 0.15s;
+    }
+    .country {
+      fill: #e6eef3;
+      stroke: #9fb3c6;
+      stroke-width: 0.6;
+    }
+    .country.hover {
+      fill: #ffd98a;
+    }
+    .flow {
+      stroke: #a7ad2f;
+      stroke-opacity: 0.6;
+      stroke-width: 1.5;
+      fill: none;
+      stroke-linecap: round;
+    }
+    .dest {
+      fill: #f0a202;
+    }
+    .meteor {
+      fill: #ff9500;
+      pointer-events: none;
+    }
+  </style>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <script>
+    const svg = d3.select('#map');
+    const g = svg.append('g').attr('class', 'map-group');
+    const tooltip = document.getElementById('tooltip');
+
+    const baseWidth = 1000,
+      baseHeight = 520;
+    let projection = d3
+      .geoNaturalEarth1()
+      .scale(170)
+      .translate([baseWidth / 2, baseHeight / 2]);
+    let path = d3.geoPath(projection);
+
+    const flows = [
+      { src: [-47.9, -15.8], dst: [100.5, 13.7] }, // Brasilia -> Bangkok
+      { src: [-77.0, 38.9], dst: [100.5, 13.7] }, // Washington -> Bangkok
+    ];
+
+    loadWorld().then((world) => {
+      const countries = topojson.feature(
+        world,
+        world.objects.countries
+      ).features;
+
+      // 畫各國邊界
+      g.selectAll('path.country')
+        .data(countries, (d) => d.id)
+        .join('path')
+        .attr('class', 'country')
+        .attr('d', path)
+        .on('mousemove', (event, d) => {
+          const name = d.properties?.name || d.properties?.NAME || 'Unknown';
+          tooltip.textContent = name;
+          tooltip.style.opacity = 1;
+          tooltip.style.left = event.clientX + 'px';
+          tooltip.style.top = event.clientY + 'px';
+          d3.select(event.currentTarget).classed('hover', true);
+        })
+        .on('mouseout', (event) => {
+          tooltip.style.opacity = 0;
+          d3.select(event.currentTarget).classed('hover', false);
+        });
+
+      // 畫直線
+      const lineGroup = g.append('g');
+      const lines = lineGroup
+        .selectAll('line.flow')
+        .data(flows)
+        .join('line')
+        .attr('class', 'flow')
+        .attr('x1', (d) => projection(d.src)[0])
+        .attr('y1', (d) => projection(d.src)[1])
+        .attr('x2', (d) => projection(d.dst)[0])
+        .attr('y2', (d) => projection(d.dst)[1]);
+
+      // 目的地點
+      g.selectAll('circle.dest')
+        .data(flows.map((f) => f.dst))
+        .join('circle')
+        .attr('class', 'dest')
+        .attr('r', 5)
+        .attr('transform', (d) => `translate(${projection(d)})`);
+
+      // ===== ⭐ 流星動畫區 =====
+      const meteors = g
+        .selectAll('circle.meteor')
+        .data(flows)
+        .join('circle')
+        .attr('class', 'meteor')
+        .attr('r', 3);
+
+      // 動畫函式：讓流星沿著線移動
+      function animateMeteors() {
+        meteors.each(function (d, i) {
+          const meteor = d3.select(this);
+          const [x1, y1] = projection(d.src);
+          const [x2, y2] = projection(d.dst);
+          const duration = 3000 + Math.random() * 2000; // 隨機速度
+          // 線性插值器
+          const interpX = d3.interpolateNumber(x1, x2);
+          const interpY = d3.interpolateNumber(y1, y2);
+
+          // 重複動畫
+          function repeat() {
+            meteor
+              .attr('cx', x1)
+              .attr('cy', y1)
+              .transition()
+              .duration(duration)
+              .ease(d3.easeCubicInOut)
+              .attr('cx', x2)
+              .attr('cy', y2)
+              .attr('opacity', 1)
+              .transition()
+              .duration(0)
+              .attr('opacity', 0)
+              .on('end', repeat);
+          }
+          repeat();
+        });
+      }
+
+      animateMeteors();
+
+      // zoom / pan
+      svg.call(
+        d3
+          .zoom()
+          .scaleExtent([1, 8])
+          .on('zoom', (ev) => g.attr('transform', ev.transform))
+      );
+    });
+
+    // 載入地圖資料
+    function loadWorld() {
+      return d3
+        .json('world-110m.json')
+        .catch(() =>
+          d3.json(
+            'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+          )
+        );
+    }
+  </script>
+</html>
