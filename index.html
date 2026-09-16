@@ -72,22 +72,24 @@
       .translate([baseWidth / 2, baseHeight / 2]);
     const path = d3.geoPath(projection);
 
-    // 經緯度 [經度, 緯度]
+    // 經緯度 [經度, 緯度] - mockdata
+    // time：API 提供的絕對時間戳記（ISO 字串），流星連線依照這個時間先後出發，
+    // 時間相同的會同時發生，時間分開的就只有一條在飛
     const flows = [
-      { src: [-77.0, 38.9], dst: [100.5, 13.7] }, // Washington → Bangkok
-      { src: [-47.9, -15.8], dst: [100.5, 13.7] }, // Brasília → Bangkok
-      { src: [-74.0, 40.7], dst: [100.5, 13.7] }, // United States (New York) → Thailand (Bangkok)
-      { src: [-0.1, 51.5], dst: [100.5, 13.7] }, // United Kingdom (London) → Thailand (Bangkok)
-      { src: [-77.0, 38.9], dst: [139.7, 35.7] }, // Washington → Tokyo
-      { src: [-47.9, -15.8], dst: [2.3, 48.9] }, // Brasília → Paris
-      { src: [-74.0, 40.7], dst: [-0.1, 51.5] }, // New York → London
-      { src: [-0.1, 51.5], dst: [116.4, 39.9] }, // London → Beijing
-      { src: [139.7, 35.7], dst: [100.5, 13.7] }, // Tokyo → Bangkok
-      { src: [2.3, 48.9], dst: [13.4, 52.5] }, // Paris → Berlin
-      { src: [151.2, -33.9], dst: [139.7, 35.7] }, // Sydney → Tokyo
-      { src: [116.4, 39.9], dst: [72.9, 19.1] }, // Beijing → Mumbai
-      { src: [37.6, 55.8], dst: [-74.0, 40.7] }, // Moscow → New York
-      { src: [72.9, 19.1], dst: [100.5, 13.7] }, // Mumbai → Bangkok
+      { src: [-77.0, 38.9], dst: [100.5, 13.7], time: '2026-09-16T10:00:00Z' }, // Washington → Bangkok
+      { src: [-47.9, -15.8], dst: [100.5, 13.7], time: '2026-09-16T10:00:00Z' }, // Brasília → Bangkok
+      { src: [-74.0, 40.7], dst: [100.5, 13.7], time: '2026-09-16T10:00:02Z' }, // New York → Bangkok
+      { src: [-0.1, 51.5], dst: [100.5, 13.7], time: '2026-09-16T10:00:03Z' }, // London → Bangkok
+      { src: [-77.0, 38.9], dst: [139.7, 35.7], time: '2026-09-16T10:00:03Z' }, // Washington → Tokyo
+      { src: [-47.9, -15.8], dst: [2.3, 48.9], time: '2026-09-16T10:00:05Z' }, // Brasília → Paris
+      { src: [-74.0, 40.7], dst: [-0.1, 51.5], time: '2026-09-16T10:00:08Z' }, // New York → London
+      { src: [-0.1, 51.5], dst: [116.4, 39.9], time: '2026-09-16T10:00:08Z' }, // London → Beijing
+      { src: [139.7, 35.7], dst: [100.5, 13.7], time: '2026-09-16T10:00:10Z' }, // Tokyo → Bangkok
+      { src: [2.3, 48.9], dst: [13.4, 52.5], time: '2026-09-16T10:00:13Z' }, // Paris → Berlin
+      { src: [151.2, -33.9], dst: [139.7, 35.7], time: '2026-09-16T10:00:15Z' }, // Sydney → Tokyo
+      { src: [116.4, 39.9], dst: [72.9, 19.1], time: '2026-09-16T10:00:15Z' }, // Beijing → Mumbai
+      { src: [37.6, 55.8], dst: [-74.0, 40.7], time: '2026-09-16T10:00:18Z' }, // Moscow → New York
+      { src: [72.9, 19.1], dst: [100.5, 13.7], time: '2026-09-16T10:00:20Z' }, // Mumbai → Bangkok
     ];
 
     // Glow 濾鏡
@@ -174,55 +176,71 @@
         .attr('stroke-width', 0.5)
         .attr('stroke-linecap', 'round')
         .attr('filter', 'url(#glow)')
+        .attr('opacity', 0) // 初始不顯示，等排到自己的時間才由 fly() 畫出來
         .attr('stroke-dasharray', function () {
-          return this.getTotalLength() + ',' + this.getTotalLength();
+          const total = this.getTotalLength();
+          return `0,${total}`;
         });
+
+      const METEOR_SPEED = 0.1; // px / ms，所有流星線統一用這個速度飛行，不受距離長短影響
+      const LOOP_GAP = 1000; // 一輪（所有連線）播完後，等多久才從頭重播下一輪（ms）
 
       animate();
 
-      // ✅ 流星動畫 + 國家亮起效果
+      // ✅ 依照 API 提供的 time 欄位排隊播放流星動畫 + 國家亮起效果
+      // 做法：找出這批資料裡最早的時間當作第 0 毫秒，其餘連線依照跟最早時間的
+      // 差距（ms）用 setTimeout 排隊出發；時間相同就會同時出發，時間分開就會
+      // 各自獨立出現。全部播完後，等 LOOP_GAP 再從頭重播整批。
       function animate() {
+        const times = flows.map((f) => new Date(f.time).getTime());
+        const startTime = Math.min(...times);
+        let cycleEnd = 0;
+
         meteors.each(function (d, i) {
           const p = d3.select(this);
           const total = this.getTotalLength();
-          const dur = 3000 + i * 1000;
+          const dur = total / METEOR_SPEED; // 依實際像素長度換算時長，確保點到點速度一致
+          const frontDur = dur * 0.5;
+          const fadeDur = dur * 0.25;
+          const delay = times[i] - startTime; // 這條連線相對於這一輪開始的出發時間
 
-          function repeat() {
-            // 起點亮起（流星效果開始時）
-            highlightCountry(d.f.src, '#1998a8');
+          cycleEnd = Math.max(cycleEnd, delay + frontDur + fadeDur);
 
-            p.attr('stroke-dasharray', `0,${total}`)
-              .attr('stroke-dashoffset', 0)
-              .attr('opacity', 1)
-              .transition()
-              .duration(dur * 0.5)
-              .ease(d3.easeCubicInOut)
-              // 前進：尾巴維持一定長度
-              .attrTween('stroke-dasharray', function () {
-                const head = d3.interpolate(0, total);
-                return (t) => `${head(t)},${total}`;
-              })
-              .attr('stroke-dashoffset', 0)
-              .on('end', () => {
-                // 終點亮起（流星到達末尾點時）
-                highlightCountry(d.f.dst, '#817ed4');
-              })
-              .transition()
-              // 第二段動畫：尾巴縮短、慢慢淡出
-              .duration(dur * 0.25)
-              .ease(d3.easeCubicOut)
-              .attrTween('stroke-dasharray', function () {
-                const tail = d3.interpolate(total, total);
-                return (t) => `${tail(t)},${total}`;
-              })
-              .attr('opacity', 0)
-              .on('end', () => {
-                p.attr('stroke-dasharray', `0,0`).attr('stroke-dashoffset', 0);
-                repeat(); // 循環
-              });
-          }
-          repeat();
+          setTimeout(() => fly(p, d, total, frontDur, fadeDur), delay);
         });
+
+        // setTimeout(animate, cycleEnd + LOOP_GAP); // 循環
+      }
+
+      // 單一流星飛行一次：起點亮起 → 前進 → 終點亮起 → 淡出
+      function fly(p, d, total, frontDur, fadeDur) {
+        // 起點亮起（流星效果開始時）
+        highlightCountry(d.f.src, '#1998a8');
+
+        p.attr('stroke-dasharray', `0,${total}`)
+          .attr('stroke-dashoffset', 0)
+          .attr('opacity', 1)
+          .transition()
+          .duration(frontDur)
+          .ease(d3.easeCubicInOut)
+          // 前進：尾巴維持一定長度
+          .attrTween('stroke-dasharray', function () {
+            const head = d3.interpolate(0, total);
+            return (t) => `${head(t)},${total}`;
+          })
+          .attr('stroke-dashoffset', 0)
+          .on('end', () => {
+            // 終點亮起（流星到達末尾點時）
+            highlightCountry(d.f.dst, '#817ed4');
+          })
+          .transition()
+          // 第二段動畫：淡出
+          .duration(fadeDur)
+          .ease(d3.easeCubicOut)
+          .attr('opacity', 0)
+          .on('end', () => {
+            p.attr('stroke-dasharray', `0,0`).attr('stroke-dashoffset', 0);
+          });
       }
 
       // 國家短暫亮起（柔和淡入淡出）
