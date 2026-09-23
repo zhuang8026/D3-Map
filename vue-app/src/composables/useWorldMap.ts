@@ -29,11 +29,14 @@ const BASE_WIDTH = 1000
 const BASE_HEIGHT = 520
 // px / ms，所有流星線統一用這個速度飛行，不受距離長短影響
 const METEOR_SPEED = 0.1
+// 一輪（所有連線）播完後，等多久才從頭重播下一輪（ms）
+const LOOP_GAP = 1000
 
-export function useWorldMap(
+// 掛載地圖：畫國家、畫流星線、排動畫循環，回傳 destroy() 供元件卸載時清理
+export const useWorldMap = (
   svgEl: Ref<SVGSVGElement | null>,
   options: UseWorldMapOptions = {}
-): UseWorldMapHandle {
+): UseWorldMapHandle => {
   const timeoutIds = new Set<ReturnType<typeof setTimeout>>()
   const abortController = new AbortController()
   let disposed = false
@@ -42,7 +45,7 @@ export function useWorldMap(
   let countryPaths: CountrySelection | null = null
   let meteors: MeteorSelection | null = null
 
-  function scheduleTimeout(fn: () => void, delay: number) {
+  const scheduleTimeout = (fn: () => void, delay: number) => {
     const id = setTimeout(() => {
       timeoutIds.delete(id)
       fn()
@@ -51,19 +54,50 @@ export function useWorldMap(
   }
 
   // 起點/終點國家短暫亮起（柔和淡入淡出）
-  function highlightCountry(coord: [number, number], color: string) {
+  const highlightCountry = (coord: [number, number], color: string) => {
     if (!projection || !countryPaths || !meteors) return
     highlightCountryOnMap(coord, color, projection, countryPaths, meteors)
   }
 
+  // 依照 flows 的 time 欄位排隊播放一輪流星動畫 + 國家亮起效果，
+  // 並在整輪播完後排下一輪，形成無限循環。
+  // 做法：找出這批資料裡最早的時間當作第 0 毫秒，其餘連線依照跟最早時間的
+  // 差距（ms）用 scheduleTimeout 排隊出發；時間相同就會同時出發，時間分開就會
+  // 各自獨立出現。同時記錄這一輪最晚結束的時間點（cycleEnd，含飛行 + 淡出），
+  // 等這一輪真正播完、再加上 LOOP_GAP 的間隔後才重新呼叫自己排下一輪。
+  // 注意：這裡一定要用 scheduleTimeout（而不是裸 setTimeout），
+  // 循環用的計時器才會被 destroy() 一併清掉，避免元件卸載後動畫仍在背景重播。
+  const scheduleAnimationLoop = () => {
+    if (!meteors) return
+
+    const times = flows.map((f) => new Date(f.time).getTime())
+    const startTime = Math.min(...times)
+    let cycleEnd = 0
+
+    meteors.each((d, i, nodes) => {
+      const node = nodes[i]
+      const p = d3.select<SVGPathElement, MeteorDatum>(node)
+      const total = node.getTotalLength()
+      const dur = total / METEOR_SPEED // 依實際像素長度換算時長，確保點到點速度一致
+      const frontDur = dur * 0.5
+      const fadeDur = dur * 0.25
+      const delay = times[d.i] - startTime // 這條連線相對於這一輪開始的出發時間
+
+      cycleEnd = Math.max(cycleEnd, delay + frontDur + fadeDur)
+      scheduleTimeout(() => fly(p, d, total, frontDur, fadeDur), delay)
+    })
+
+    scheduleTimeout(scheduleAnimationLoop, cycleEnd + LOOP_GAP) // 循環
+  }
+
   // 單一流星飛行一次：起點亮起 → 前進 → 終點亮起 → 淡出
-  function fly(
+  const fly = (
     p: d3.Selection<SVGPathElement, MeteorDatum, null, undefined>,
     d: MeteorDatum,
     total: number,
     frontDur: number,
     fadeDur: number
-  ) {
+  ) => {
     // 起點亮起（流星效果開始時）
     highlightCountry(d.f.src, '#1998a8')
 
@@ -74,7 +108,7 @@ export function useWorldMap(
       .duration(frontDur)
       .ease(d3.easeCubicInOut)
       // 前進：尾巴維持一定長度
-      .attrTween('stroke-dasharray', function () {
+      .attrTween('stroke-dasharray', () => {
         const head = d3.interpolate(0, total)
         return (t: number) => `${head(t)},${total}`
       })
@@ -93,7 +127,7 @@ export function useWorldMap(
       })
   }
 
-  async function setup() {
+  const setup = async () => {
     const el = svgEl.value
     if (!el) return
 
@@ -130,26 +164,10 @@ export function useWorldMap(
     appendMeteorGradients(defs, flows, projection)
     meteors = drawMeteors(meteorsGroup, flows, projection)
 
-    // ✅ 依照 API 提供的 time 欄位排隊播放流星動畫 + 國家亮起效果
-    // 做法：找出這批資料裡最早的時間當作第 0 毫秒，其餘連線依照跟最早時間的
-    // 差距（ms）用 setTimeout 排隊出發；時間相同就會同時出發，時間分開就會
-    // 各自獨立出現。
-    const times = flows.map((f) => new Date(f.time).getTime())
-    const startTime = Math.min(...times)
-
-    meteors.each(function (d) {
-      const p = d3.select<SVGPathElement, MeteorDatum>(this)
-      const total = this.getTotalLength()
-      const dur = total / METEOR_SPEED // 依實際像素長度換算時長，確保點到點速度一致
-      const frontDur = dur * 0.5
-      const fadeDur = dur * 0.25
-      const delay = times[d.i] - startTime // 這條連線相對於這一輪開始的出發時間
-
-      scheduleTimeout(() => fly(p, d, total, frontDur, fadeDur), delay)
-    })
+    scheduleAnimationLoop()
   }
 
-  function destroy() {
+  const destroy = () => {
     disposed = true
     abortController.abort()
     for (const id of timeoutIds) clearTimeout(id)
@@ -167,7 +185,8 @@ export function useWorldMap(
   return { destroy }
 }
 
-function appendGlowFilter(defs: d3.Selection<SVGDefsElement, unknown, null, undefined>) {
+// 建立流星線用的模糊光暈 SVG filter
+const appendGlowFilter = (defs: d3.Selection<SVGDefsElement, unknown, null, undefined>) => {
   const glow = defs.append('filter').attr('id', 'glow').attr('filterUnits', 'userSpaceOnUse')
   glow.append('feGaussianBlur').attr('stdDeviation', 2).attr('result', 'blur')
   const merge = glow.append('feMerge')
@@ -175,12 +194,13 @@ function appendGlowFilter(defs: d3.Selection<SVGDefsElement, unknown, null, unde
   merge.append('feMergeNode').attr('in', 'SourceGraphic')
 }
 
-function drawCountries(
+// 畫出所有國家的 path，並綁定 hover 顯示 tooltip / 高亮的事件
+const drawCountries = (
   countriesGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
   countries: CountryFeature[],
   path: d3.GeoPath,
   options: UseWorldMapOptions
-): CountrySelection {
+): CountrySelection => {
   return countriesGroup
     .selectAll<SVGPathElement, CountryFeature>('path.country')
     .data(countries)
@@ -199,11 +219,12 @@ function drawCountries(
     })
 }
 
-function appendMeteorGradients(
+// 為每條 flow 建立對應的漸層（依投影後的螢幕座標），供流星線描邊使用
+const appendMeteorGradients = (
   defs: d3.Selection<SVGDefsElement, unknown, null, undefined>,
   flows: Flow[],
   projection: d3.GeoProjection
-) {
+) => {
   flows.forEach((f, i) => {
     const [x1, y1] = projection(f.src)!
     const [x2, y2] = projection(f.dst)!
@@ -225,11 +246,12 @@ function appendMeteorGradients(
   })
 }
 
-function drawMeteors(
+// 畫出每條 flow 對應的流星線條（初始不可見，等排到時間才由 fly() 播放）
+const drawMeteors = (
   meteorsGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
   flows: Flow[],
   projection: d3.GeoProjection
-): MeteorSelection {
+): MeteorSelection => {
   return meteorsGroup
     .selectAll<SVGPathElement, MeteorDatum>('path.meteor')
     .data(flows.map((f, i) => ({ f, i })))
@@ -245,19 +267,20 @@ function drawMeteors(
     .attr('stroke-linecap', 'round')
     .attr('filter', 'url(#glow)')
     .attr('opacity', 0) // 初始不顯示，等排到自己的時間才由 fly() 畫出來
-    .attr('stroke-dasharray', function () {
-      const total = this.getTotalLength()
+    .attr('stroke-dasharray', (_d, i, nodes) => {
+      const total = nodes[i].getTotalLength()
       return `0,${total}`
     })
 }
 
-function highlightCountryOnMap(
+// 找出座標所在（或最接近）的國家，短暫變色再淡出，實際執行 highlightCountry 的邏輯
+const highlightCountryOnMap = (
   coord: [number, number],
   color: string,
   projection: d3.GeoProjection,
   countryPaths: CountrySelection,
   meteors: MeteorSelection
-) {
+) => {
   const [x, y] = projection(coord)!
 
   let foundCountry: SVGPathElement | null = null
@@ -265,10 +288,10 @@ function highlightCountryOnMap(
   let closestCountry: SVGPathElement | null = null
 
   // 先嘗試找到包含該座標的國家（使用 d3.geoContains 檢查地理座標）
-  countryPaths.each(function (d) {
+  countryPaths.each((d, i, nodes) => {
     if (foundCountry) return
     if (d3.geoContains(d, coord)) {
-      foundCountry = this
+      foundCountry = nodes[i]
       return
     }
 
@@ -277,7 +300,7 @@ function highlightCountryOnMap(
     const dist = Math.hypot(cx - x, cy - y)
     if (dist < minDist) {
       minDist = dist
-      closestCountry = this
+      closestCountry = nodes[i]
     }
   })
 
