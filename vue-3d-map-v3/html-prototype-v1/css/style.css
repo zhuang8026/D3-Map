@@ -1,0 +1,109 @@
+:root {
+  --bg: #16171b;
+  --panel: rgba(28, 29, 34, 0.92);
+  --border: rgba(255, 255, 255, 0.12);
+  --text: #e8e9ec;
+  --muted: #9a9ca5;
+  --broken: #ff3b3b;
+  --partial: #ffa31a;
+  --notice: #4da3ff;
+  --normal: #3ddc84;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", sans-serif;
+  font-size: 14px;
+}
+
+#map { position: absolute; inset: 0; }
+
+/* ---------- hover 提示 ---------- */
+.hover-tip {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+  transform: translate(14px, 14px);
+}
+.hover-tip .name { font-weight: 600; }
+.hover-tip .sub { color: var(--muted); font-size: 12px; }
+
+/* ---------- 篩選 ---------- */
+.filter {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.filter button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.filter button:hover { color: var(--text); }
+.filter button.active { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+}
+
+/* ---------- Popup（覆寫 MapLibre 預設樣式） ---------- */
+.maplibregl-popup-content {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+.maplibregl-popup-tip { display: none; }
+.maplibregl-popup-close-button { color: var(--muted); font-size: 18px; padding: 2px 8px; }
+.maplibregl-popup-close-button:hover { background: transparent; color: var(--text); }
+
+.pop { min-width: 220px; max-width: 320px; }
+.pop h3 { margin: 0 24px 4px 0; font-size: 15px; }
+.pop .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.pop .section-title { margin-top: 12px; color: var(--muted); font-size: 12px; }
+.pop .incident { padding: 8px 0 0; margin-top: 8px; border-top: 1px solid var(--border); }
+.pop .incident .title { font-weight: 500; }
+.pop .incident .dates { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.badge.normal { background: rgba(61, 220, 132, 0.15); color: var(--normal); }
+.badge.partial_disconnected { background: rgba(255, 163, 26, 0.15); color: var(--partial); }
+.badge.disconnected { background: rgba(255, 59, 59, 0.15); color: var(--broken); }
+.badge.notice { background: rgba(77, 163, 255, 0.15); color: var(--notice); }
+
+.maplibregl-ctrl-attrib { background: rgba(0, 0, 0, 0.5) !important; }
+.maplibregl-ctrl-attrib a { color: var(--muted) !important; }

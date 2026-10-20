@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>海纜狀態地圖（原型）</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="./css/style.css" />
+  <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- hover 時跟隨游標的提示 -->
+  <div id="hover-tip" class="hover-tip" hidden></div>
+
+  <!-- 狀態篩選 -->
+  <div class="filter" role="group" aria-label="狀態篩選">
+    <button type="button" data-filter="all" class="active">全部</button>
+    <button type="button" data-filter="normal">正常</button>
+    <button type="button" data-filter="abnormal">異常</button>
+  </div>
+
+  <div id="loading" class="loading">載入中…</div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
