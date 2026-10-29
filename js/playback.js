@@ -20,6 +20,9 @@ export function bindPlayback(flows) {
   speed.value = String(FLOW.playbackRate);
   speed.addEventListener('change', () => flows.setRate(Number(speed.value)));
   toggle.addEventListener('click', () => flows.toggle());
+  document.querySelectorAll('.legend input[data-layer]').forEach((input) => {
+    input.addEventListener('change', () => flows.setLayerEnabled(input.dataset.layer, input.checked));
+  });
 
   // 每幀都會通知，只在文字真的改變時才動 DOM
   let lastText = '';

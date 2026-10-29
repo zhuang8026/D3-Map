@@ -6,6 +6,8 @@ import { distanceKm, greatCircle, slicePath, containsPoint } from './geo.js';
 
 const LAYERS = Object.keys(FLOW.color); // 'L7' | 'L4'
 const PULSE_DURATION = 1200;
+const PULSE = { radius: 18, width: 1.5 };
+const SAME_COUNTRY_PULSE = { radius: 30, width: 2.5 }; // 同國事件沒有航線，光圈放大讓它看得到
 const COUNTRY_GLOW = { rise: 200, hold: 1000, fade: 400 }; // 與 demo 的國家亮起節奏一致
 
 const easeCubicInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -138,7 +140,7 @@ function addLayers(map, countries, beforeId) {
       'circle-radius': ['get', 'r'],
       'circle-color': 'rgba(0, 0, 0, 0)',
       'circle-stroke-color': ['get', 'color'],
-      'circle-stroke-width': 1.5,
+      'circle-stroke-width': ['get', 'w'],
       'circle-stroke-opacity': ['get', 'a'],
     },
   });
@@ -174,7 +176,7 @@ function addLayers(map, countries, beforeId) {
 /**
  * 建立流量圖層並開始播放。
  * @param {object} opts.beforeId 來源國亮起要插在哪個圖層之下（讓海纜蓋在上面）
- * @returns 播放控制器：play / pause / toggle / setRate / subscribe
+ * @returns 播放控制器：play / pause / toggle / setRate / setLayerEnabled / subscribe
  */
 export function createFlowLayer(map, { traffic, countries }, { beforeId } = {}) {
   countries.features.forEach((f, i) => { f.id = i; }); // feature-state 需要數字 id
@@ -197,11 +199,21 @@ export function createFlowLayer(map, { traffic, countries }, { beforeId } = {}) 
   let meteors = [];
   let pulses = [];
   const glowing = new Map(); // country id -> 亮起開始時間
+  const enabled = new Set(LAYERS); // 勾選要顯示的層級
   const listeners = new Set();
 
   function spawn(event) {
     player.count += 1;
+    if (!enabled.has(event.layer)) return; // 未勾選的層級只計數、不畫
     const route = routeOf(event.srcCode, event.dstCode);
+    const countryId = countryOf(event.srcCode);
+
+    // 同國事件（例如 L4 的 CA → CA）不畫流星，改在目的地顯示該層顏色的光圈
+    if (event.srcCode === event.dstCode) {
+      pulses.push({ coord: route.dst, color: FLOW.color[event.layer], layer: event.layer, start: anim, ...SAME_COUNTRY_PULSE });
+      if (countryId !== null) glowing.set(countryId, anim);
+      return;
+    }
 
     // 同一條航線還在前半段飛行中：只累加次數（線變粗），不重複畫
     const same = meteors.find((m) => m.route === route && m.layer === event.layer && anim - m.start < route.duration / 2);
@@ -212,8 +224,7 @@ export function createFlowLayer(map, { traffic, countries }, { beforeId } = {}) 
     if (meteors.length >= FLOW.maxActive) return;
 
     meteors.push({ route, layer: event.layer, start: anim, count: 1, arrived: false });
-    pulses.push({ coord: route.src, color: FLOW.srcCountryColor, start: anim });
-    const countryId = countryOf(event.srcCode);
+    pulses.push({ coord: route.src, color: FLOW.srcCountryColor, layer: event.layer, start: anim, ...PULSE });
     if (countryId !== null) glowing.set(countryId, anim);
   }
 
@@ -270,7 +281,7 @@ export function createFlowLayer(map, { traffic, countries }, { beforeId } = {}) 
     for (const m of meteors) {
       if (!m.arrived && anim - m.start >= m.route.duration) {
         m.arrived = true;
-        pulses.push({ coord: m.route.dst, color: FLOW.dstPulseColor, start: anim });
+        pulses.push({ coord: m.route.dst, color: FLOW.dstPulseColor, layer: m.layer, start: anim, ...PULSE });
       }
     }
     meteors = meteors.filter((m) => anim - m.start < m.route.duration + FLOW.fadeDuration);
@@ -294,7 +305,7 @@ export function createFlowLayer(map, { traffic, countries }, { beforeId } = {}) 
         const k = (anim - p.start) / PULSE_DURATION;
         return {
           type: 'Feature',
-          properties: { color: p.color, r: 3 + k * 18, a: 1 - k },
+          properties: { color: p.color, r: 3 + k * p.radius, w: p.width, a: 1 - k },
           geometry: { type: 'Point', coordinates: p.coord },
         };
       }),
@@ -324,6 +335,17 @@ export function createFlowLayer(map, { traffic, countries }, { beforeId } = {}) 
     pause() { player.playing = false; },
     toggle() { player.playing = !player.playing; },
     setRate(rate) { player.rate = rate; },
+    /** 顯示 / 隱藏某層級（'L7' | 'L4'）的流星；取消勾選時立即清掉畫面上該層級的流星與光圈 */
+    setLayerEnabled(layer, on) {
+      if (on) {
+        enabled.add(layer);
+        return;
+      }
+      enabled.delete(layer);
+      meteors = meteors.filter((m) => m.layer !== layer);
+      pulses = pulses.filter((p) => p.layer !== layer);
+      render(); // 暫停中也要立即更新畫面
+    },
     total: events.length,
     subscribe(fn) {
       listeners.add(fn);

@@ -28,7 +28,10 @@
     <span id="play-clock" class="clock">—</span>
     <select id="play-speed" aria-label="播放倍速"></select>
     <span id="play-count" class="count"></span>
-    <span class="legend"><i class="l7"></i>L7 <i class="l4"></i>L4</span>
+    <span class="legend" role="group" aria-label="顯示的層級">
+      <label><input type="checkbox" data-layer="L7" checked /><i class="l7"></i>L7</label>
+      <label><input type="checkbox" data-layer="L4" checked /><i class="l4"></i>L4</label>
+    </span>
   </div>
 
   <div id="loading" class="loading">載入中…</div>
