@@ -48,6 +48,36 @@ export function greatCircle(src, dst, steps = 64) {
   return points;
 }
 
+/** 折線總長（公里） */
+export function pathKm(points) {
+  let km = 0;
+  for (let i = 1; i < points.length; i++) km += distanceKm(points[i - 1], points[i]);
+  return km;
+}
+
+/** 經度換算到 [seam, seam + 360) */
+function wrapLng(lng, seam) {
+  return ((((lng - seam) % 360) + 360) % 360) + seam;
+}
+
+/**
+ * 流星航線：起訖點都換算到 [seam, seam + 360) 這個經度副本，整條線不跨過接縫經線（畫面背面）。
+ * 大圓航線不跨接縫時直接用大圓；會跨接縫時（例如歐洲 → 美西走大西洋），
+ * 改走另一側，以向北拱起的弧線連接。
+ */
+export function flowPath(src, dst, seam, steps = 64) {
+  const a = [wrapLng(src[0], seam), src[1]];
+  const b = [wrapLng(dst[0], seam), dst[1]];
+  const path = greatCircle(a, b, steps);
+  if (path.every(([lng]) => lng >= seam && lng < seam + 360)) return path;
+
+  const bulge = Math.abs(b[0] - a[0]) * 0.08; // 拱起高度（緯度）隨東西跨度增加
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + Math.sin(Math.PI * t) * bulge];
+  });
+}
+
 /** 取折線上 [from, to]（0..1，依點的索引比例）之間的片段 */
 export function slicePath(points, from, to) {
   const last = points.length - 1;

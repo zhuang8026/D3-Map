@@ -2,7 +2,7 @@
 // 移植自 demo/index.html（D3 版），改用 MapLibre 圖層繪製
 
 import { FLOW, SKYCLOUD_NODES, COUNTRY_COORDS } from './config.js';
-import { distanceKm, greatCircle, slicePath, containsPoint } from './geo.js';
+import { flowPath, pathKm, slicePath, containsPoint } from './geo.js';
 
 const LAYERS = Object.keys(FLOW.color); // 'L7' | 'L4'
 const PULSE_DURATION = 1200;
@@ -46,11 +46,12 @@ function createRouteCache() {
   return (srcCode, dstCode) => {
     const key = `${srcCode}>${dstCode}`;
     if (!cache.has(key)) {
-      const src = COUNTRY_COORDS[srcCode];
       const dst = SKYCLOUD_NODES[dstCode]?.coordinates ?? COUNTRY_COORDS[dstCode];
-      const km = distanceKm(src, dst);
+      const path = flowPath(COUNTRY_COORDS[srcCode], dst, FLOW.seamLng);
+      const km = pathKm(path);
       const duration = Math.min(FLOW.maxDuration, Math.max(FLOW.minDuration, (km / FLOW.speedKmPerSec) * 1000));
-      cache.set(key, { key, src, dst, path: greatCircle(src, dst), duration });
+      // 光圈畫在航線的頭尾，與流星落在同一個經度副本
+      cache.set(key, { key, src: path[0], dst: path.at(-1), path, duration });
     }
     return cache.get(key);
   };
