@@ -1,0 +1,25 @@
+// CableMap 的配色與面板樣式。各元件以 @import (reference) 引入，不輸出任何 CSS。
+
+@cm-bg: #16171b;
+@cm-panel: rgba(28, 29, 34, 0.92);
+@cm-border: rgba(255, 255, 255, 0.12);
+@cm-text: #e8e9ec;
+@cm-muted: #9a9ca5;
+
+// 海纜狀態（與 lib/config.js 的 STATUS_COLOR 一致）
+@cm-broken: #ff3b3b;
+@cm-partial: #ffa31a;
+@cm-notice: #4da3ff;
+@cm-normal: #3ddc84;
+
+// 流量層級（與 lib/config.js 的 FLOW.color 一致）
+@cm-flow-l7: #7df9ff;
+@cm-flow-l4: #ffb347;
+
+@cm-font: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", sans-serif;
+
+.cm-panel() {
+  border: 1px solid @cm-border;
+  border-radius: 8px;
+  background: @cm-panel;
+}

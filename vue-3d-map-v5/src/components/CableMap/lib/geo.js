@@ -1,0 +1,123 @@
+// 地理計算（純函式，不碰 DOM / 地圖）
+
+const RAD = Math.PI / 180;
+const EARTH_RADIUS_KM = 6371;
+
+function toVec([lng, lat]) {
+  const l = lng * RAD;
+  const p = lat * RAD;
+  return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)];
+}
+
+function toLngLat([x, y, z]) {
+  return [Math.atan2(y, x) / RAD, Math.atan2(z, Math.hypot(x, y)) / RAD];
+}
+
+const clampUnit = (v) => Math.min(1, Math.max(-1, v));
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+/** 兩點間的大圓距離（公里） */
+export function distanceKm(a, b) {
+  return Math.acos(clampUnit(dot(toVec(a), toVec(b)))) * EARTH_RADIUS_KM;
+}
+
+/**
+ * 兩點間的大圓航線，回傳 steps + 1 個點。
+ * 經度會保持連續（例如 121 → 241，而不是 121 → -119），
+ * 跨越 180 度經線時線條才不會橫跨整張地圖。
+ */
+export function greatCircle(src, dst, steps = 64) {
+  const a = toVec(src);
+  const b = toVec(dst);
+  const omega = Math.acos(clampUnit(dot(a, b)));
+  if (omega < 1e-9) return [src, dst];
+
+  const sin = Math.sin(omega);
+  const points = [];
+  let prevLng = src[0];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const k1 = Math.sin((1 - t) * omega) / sin;
+    const k2 = Math.sin(t * omega) / sin;
+    const [rawLng, lat] = toLngLat([
+      k1 * a[0] + k2 * b[0],
+      k1 * a[1] + k2 * b[1],
+      k1 * a[2] + k2 * b[2],
+    ]);
+    let lng = rawLng;
+    while (lng - prevLng > 180) lng -= 360;
+    while (lng - prevLng < -180) lng += 360;
+    prevLng = lng;
+    points.push([lng, lat]);
+  }
+  return points;
+}
+
+/** 折線總長（公里） */
+export function pathKm(points) {
+  let km = 0;
+  for (let i = 1; i < points.length; i += 1) km += distanceKm(points[i - 1], points[i]);
+  return km;
+}
+
+/** 經度換算到 [seam, seam + 360) */
+export function wrapLng(lng, seam) {
+  return ((((lng - seam) % 360) + 360) % 360) + seam;
+}
+
+/**
+ * 流星航線：起訖點都換算到 [seam, seam + 360) 這個經度副本，整條線不跨過接縫經線（畫面背面）。
+ * 大圓航線不跨接縫時直接用大圓；會跨接縫時（例如歐洲 → 美西走大西洋），
+ * 改走另一側，以向北拱起的弧線連接。
+ */
+export function flowPath(src, dst, seam, steps = 64) {
+  const a = [wrapLng(src[0], seam), src[1]];
+  const b = [wrapLng(dst[0], seam), dst[1]];
+  const path = greatCircle(a, b, steps);
+  if (path.every(([lng]) => lng >= seam && lng < seam + 360)) return path;
+
+  const bulge = Math.abs(b[0] - a[0]) * 0.08; // 拱起高度（緯度）隨東西跨度增加
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps;
+    return [
+      a[0] + (b[0] - a[0]) * t,
+      a[1] + (b[1] - a[1]) * t + Math.sin(Math.PI * t) * bulge,
+    ];
+  });
+}
+
+/** 取折線上 [from, to]（0..1，依點的索引比例）之間的片段 */
+export function slicePath(points, from, to) {
+  const last = points.length - 1;
+  const at = (t) => {
+    const f = t * last;
+    const i = Math.min(Math.floor(f), last - 1);
+    const r = f - i;
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[i + 1];
+    return [x1 + (x2 - x1) * r, y1 + (y2 - y1) * r];
+  };
+  const inner = points.slice(Math.floor(from * last) + 1, Math.ceil(to * last));
+  return [at(from), ...inner, at(to)];
+}
+
+function inRing([x, y], ring) {
+  let inside = false;
+  let j = ring.length - 1;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    j = i;
+  }
+  return inside;
+}
+
+/** 點是否落在 GeoJSON Polygon / MultiPolygon 內（含挖洞） */
+export function containsPoint(geometry, point) {
+  let polygons = [];
+  if (geometry.type === 'Polygon') polygons = [geometry.coordinates];
+  else if (geometry.type === 'MultiPolygon') polygons = geometry.coordinates;
+  return polygons.some(([outer, ...holes]) => inRing(point, outer)
+    && !holes.some((h) => inRing(point, h)));
+}
