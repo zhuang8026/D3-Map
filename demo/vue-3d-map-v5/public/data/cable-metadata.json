@@ -1,0 +1,296 @@
+{
+  "sourceUrl": "https://moda.gov.tw/major-policies/subseacable/1747",
+  "verifiedAt": "2026-09-28",
+  "cables": {
+    "c2c": [
+      {
+        "chineseName": "市通市海纜",
+        "englishAbbreviation": "C2C",
+        "countries": [
+          "HK",
+          "JP",
+          "PH",
+          "SG",
+          "KR",
+          "CN"
+        ],
+        "englishName": "City-to-City Cable System"
+      }
+    ],
+    "eac1": [
+      {
+        "chineseName": "東亞交匯一號海纜系統",
+        "englishAbbreviation": "EAC1",
+        "countries": [
+          "JP",
+          "HK",
+          "KR",
+          "CN"
+        ],
+        "englishName": "East Asia Crossing 1"
+      }
+    ],
+    "eac2": [
+      {
+        "chineseName": "東亞交匯二號海纜系統",
+        "englishAbbreviation": "EAC2",
+        "countries": [
+          "PH",
+          "SG",
+          "HK"
+        ],
+        "englishName": "East Asia Crossing 2"
+      }
+    ],
+    "frnal-nacs": [
+      {
+        "chineseName": "北亞海纜",
+        "englishAbbreviation": "FNAL",
+        "countries": [
+          "HK",
+          "JP",
+          "KR"
+        ],
+        "englishName": "FLAG North Asia Loop"
+      },
+      {
+        "chineseName": "北亞光纜系統",
+        "englishAbbreviation": "RNAL",
+        "countries": [
+          "HK",
+          "JP",
+          "KR"
+        ],
+        "englishName": "REACH North Asia Loop"
+      }
+    ],
+    "apcn2": [
+      {
+        "chineseName": "亞太網路二號",
+        "englishAbbreviation": "APCN-2",
+        "serviceStart": {
+          "yearMonth": "2001/12",
+          "sourceUrl": "https://www.cht.com.tw/home/international/about/locations/index.html"
+        },
+        "countries": [
+          "CN",
+          "JP",
+          "MY",
+          "HK",
+          "PH",
+          "SG",
+          "KR"
+        ],
+        "englishName": "Asia Pacific Cable Network-2"
+      }
+    ],
+    "apg": [
+      {
+        "chineseName": "亞太直達海纜",
+        "englishAbbreviation": "APG",
+        "taiwanServiceStart": {
+          "yearMonth": "2016/11",
+          "sourceUrl": "https://www.cht.com.tw/zh-tw/home/cht/messages/2016/msg-161118-135806"
+        },
+        "serviceStart": {
+          "yearMonth": "2016/10",
+          "sourceUrl": "https://www.ntt.com/about-us/press-releases/news/article/2016/20161031_2.html"
+        },
+        "countries": [
+          "JP",
+          "HK",
+          "SG",
+          "KR",
+          "VN",
+          "MY",
+          "CN",
+          "TH"
+        ],
+        "englishName": "Asia Pacific Gateway"
+      }
+    ],
+    "ncp": [
+      {
+        "chineseName": "新橫太平洋海纜",
+        "englishAbbreviation": "NCP",
+        "serviceStart": {
+          "yearMonth": "2018/02",
+          "sourceUrl": "https://www.cht.com.tw/home/international/about/locations/index.html"
+        },
+        "countries": [
+          "CN",
+          "JP",
+          "US",
+          "KR"
+        ],
+        "englishName": "New Cross Pacific Cable System"
+      }
+    ],
+    "plcn": [
+      {
+        "chineseName": "太平洋光纜網絡",
+        "englishAbbreviation": "PLCN",
+        "countries": [
+          "US",
+          "PH"
+        ],
+        "englishName": "Pacific Light Cable Network"
+      }
+    ],
+    "tpe": [
+      {
+        "chineseName": "橫太平洋快速海纜",
+        "englishAbbreviation": "TPE",
+        "taiwanServiceStart": {
+          "yearMonth": "2008/09",
+          "sourceUrl": "https://www.ntt.com/en/about-us/press-releases/news/article/2009/20091225.html"
+        },
+        "countries": [
+          "CN",
+          "JP",
+          "US",
+          "KR"
+        ],
+        "englishName": "Trans-Pacific Express"
+      }
+    ],
+    "sjc2": [
+      {
+        "chineseName": "東南亞日本二號",
+        "englishAbbreviation": "SJC2",
+        "taiwanServiceStart": {
+          "yearMonth": "2025/07",
+          "sourceUrl": "https://www.cht.com.tw/zh-tw/home/cht/messages/2025/0718-1400"
+        },
+        "countries": [
+          "HK",
+          "JP",
+          "SG",
+          "CN",
+          "KR",
+          "TH",
+          "VN"
+        ],
+        "englishName": "Southeast Asia-Japan Cable 2"
+      }
+    ],
+    "tse1": [
+      {
+        "chineseName": "海峽光纜一號",
+        "englishAbbreviation": "TSE-1",
+        "taiwanServiceStart": {
+          "yearMonth": "2013/11",
+          "sourceUrl": "https://www.cht.com.tw/zh-tw/home/cht/messages/2013/msg-131104-083535"
+        },
+        "countries": [
+          "CN"
+        ],
+        "englishName": "Taiwan Strait Express 1"
+      }
+    ],
+    "faster": [
+      {
+        "chineseName": "跨太平洋高速海纜",
+        "englishAbbreviation": "FASTER",
+        "taiwanServiceStart": {
+          "yearMonth": "2016/09",
+          "sourceUrl": "https://blog.google/company-news/inside-google/around-the-globe/google-asia/making-google-little-bit-faster-across-asia/"
+        },
+        "serviceStart": {
+          "yearMonth": "2016/06",
+          "sourceUrl": "https://www.nec.com/en/press/201606/global_20160629_02.html"
+        },
+        "countries": [
+          "US",
+          "JP"
+        ],
+        "englishName": "FASTER"
+      }
+    ],
+    "apricot": [
+      {
+        "chineseName": "杏子海纜",
+        "englishAbbreviation": "APRICOT",
+        "countries": [
+          "JP",
+          "GU"
+        ],
+        "englishName": "APRICOT"
+      }
+    ],
+    "tpu": [
+      {
+        "chineseName": "臺美菲海纜",
+        "englishAbbreviation": "TPU",
+        "countries": [
+          "PH",
+          "US"
+        ],
+        "englishName": "Taiwan-Philippines-US cable system"
+      }
+    ],
+    "twtk2": [
+      {
+        "chineseName": "臺金二號海纜",
+        "englishAbbreviation": "TK2",
+        "countries": [
+          "TW"
+        ]
+      }
+    ],
+    "twtm2": [
+      {
+        "chineseName": "臺馬二號海纜",
+        "englishAbbreviation": "TDM2",
+        "countries": [
+          "TW"
+        ]
+      }
+    ],
+    "twtm3": [
+      {
+        "chineseName": "臺馬三號海纜",
+        "englishAbbreviation": "TM3",
+        "countries": [
+          "TW"
+        ]
+      }
+    ],
+    "twtp2": [
+      {
+        "chineseName": "臺澎二號海纜",
+        "englishAbbreviation": "TP2",
+        "countries": [
+          "TW"
+        ]
+      }
+    ],
+    "twtp3": [
+      {
+        "chineseName": "臺澎三號海纜",
+        "englishAbbreviation": "TP3",
+        "countries": [
+          "TW"
+        ]
+      }
+    ],
+    "twpk1": [
+      {
+        "chineseName": "澎金一號海纜",
+        "englishAbbreviation": "PK1",
+        "countries": [
+          "TW"
+        ]
+      }
+    ],
+    "twpk3": [
+      {
+        "chineseName": "澎金三號海纜",
+        "englishAbbreviation": "PK3",
+        "countries": [
+          "TW"
+        ]
+      }
+    ]
+  }
+}
